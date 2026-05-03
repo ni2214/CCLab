@@ -5,6 +5,8 @@ let env;
 let sounds;
 let ui;
 let mx, my;
+let sheep = [];
+let sheepC = 15;
 
 function preload() {
   sounds = new SoundBank()
@@ -18,22 +20,25 @@ function setup() {
   env = new Environment()
   ui = new UI()
   game = new Game()
+  for (let i = 0; i < sheepC; i++) {
+    sheep.push({ x: random(0, 800), y: random(350, 400), vx: random(-0.4, 0) })
+  }
 }
 
 function draw() {
   mx = mouseX;
   my = mouseY;
 
-  env.update();
+  env.move();
   env.display();
 
   // play ambient if not on title
   if (game.state != "title") {
-    sounds.loopOne("ambient", 0.2)
+    sounds.loopOne("ambient", 0.3)
   }
 
-  game.update()
-  game.draw()
+  game.move()
+  game.display()
 
   if (game.state != "title" && game.state != "ending") {
     ui.drawHUD(env, game)
@@ -218,7 +223,6 @@ class Game {
         this.minigame = new ShelterMinigame()
       }
     }
-    this.minigame.start()
     this.state = "minigame"
   }
 
@@ -235,19 +239,19 @@ class Game {
     this.state = "outcome"
   }
 
-  update() {
+  move() {
     if (this.state == "minigame" && this.minigame) {
-      this.minigame.update()
+      this.minigame.move()
     }
   }
 
-  draw() {
+  display() {
     if (this.state == "title") {
       ui.drawTitle()
     } else if (this.state == "prompt") {
       ui.drawPrompt(this)
     } else if (this.state == "minigame" && this.minigame) {
-      this.minigame.draw()
+      this.minigame.display()
     } else if (this.state == "outcome") {
       ui.drawOutcome(this)
     } else if (this.state == "ending") {
@@ -378,13 +382,39 @@ class UI {
     textSize(16)
     text(game.prompts[i], 400, 72)
 
-    this.drawButton(80, 430, 300, 50, game.harmChoices[i], 120, 50, 50)
-    this.drawButton(420, 430, 300, 50, game.preserveChoices[i], 50, 90, 60)
+    this.drawButton(80, 430, 300, 50, game.harmChoices[i], 123, 79, 34)
+    this.drawButton(420, 430, 300, 50, game.preserveChoices[i], 123, 79, 34)
 
     fill(255, 200)
     textSize(11)
     text(game.harmHints[i], 230, 493)
     text(game.preserveHints[i], 570, 493)
+    //sheep
+    let visibleSheep = floor(sheep.length * env.tribe)
+    for (let i = 0; i < visibleSheep; i++) {
+      let h = sheep[i]
+      // graze movement
+      h.vx += random(-0.03, 0.03)
+      h.vx = constrain(h.vx, -0.5, 0.5)
+      h.x += h.vx
+      fill(0, 0, 0, 80)
+      ellipse(h.x, h.y + 10, 20, 4, 10)
+      fill(230, 220, 200)
+      ellipse(h.x + 5, h.y - 5, 6, 6)
+      ellipse(h.x - 5, h.y + 5, 6, 6)
+      ellipse(h.x, h.y, 6, 6)
+      ellipse(h.x - 5, h.y - 5, 6, 6)
+      ellipse(h.x + 5, h.y + 5, 6, 6)
+      ellipse(h.x - 5, h.y, 6, 6)
+
+      ellipse(h.x + 5, h.y, 6, 6)
+      ellipse(h.x, h.y + 5, 6, 6)
+      ellipse(h.x, h.y - 5, 6, 6)
+      ellipse(h.x - 9, h.y, 6, 6)
+      ellipse(h.x + 9, h.y, 6, 6)
+      fill(100, 80, 60)
+      ellipse(h.x - 10, h.y - 4, 10, 8)
+    }
   }
 
   drawOutcome(game) {
@@ -461,14 +491,7 @@ class ChopMinigame {
     this.shake = 0;
   }
 
-  start() {
-    this.hits = 0;
-    this.timer = 0;;
-    this.flash = 0;
-    this.shake = 0;
-  }
-
-  draw() {
+  display() {
     fill(0, 0, 0, 60);
     rect(0, 0, 800, 500);
 
@@ -495,10 +518,10 @@ class ChopMinigame {
     drawTopBar("CLICK to swing the axe  :  " + this.hits + " / " + this.target)
     drawTimerBar(this.timer, this.timeLimit, 200, 80, 60)
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.flash > 0) {
       this.flash = this.flash - 1
@@ -508,11 +531,11 @@ class ChopMinigame {
     }
 
     if (this.hits >= this.target) {
-      game.finishMinigame(-0.20, 0.25,
+      game.finishMinigame(-0.20, 0.15,
         "The pines fall. The ger is warm, the children laugh,\nbut the ridge stands bare against the sky.",
         true)
     } else if (this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.12, 0.08,
+      game.finishMinigame(-0.12, -0.08,
         "Night fell before the work was done.\nThe pines are wounded. The fire burns small.",
         false)
     }
@@ -532,26 +555,18 @@ class ChopMinigame {
 class GatherMinigame {
   constructor() {
     this.timer = 0;
-    this.timeLimit = 600;
-    this.target = 12;
+    this.timeLimit = 1500;
+    this.target = 8;
     this.collected = 0;
-    this.bits = []  // each piece:; {x, y, picked}
+    this.bits = [];
     this.px = 400;
     this.py = 380;
-  }
-
-  start() {
-    this.bits = []
-    this.collected = 0
-    this.timer = 0
-    this.px = 400
-    this.py = 380
     for (let i = 0; i < 12; i++) {
       this.bits.push({ x: random(60, 740), y: random(340, 460), picked: false })
     }
   }
 
-  draw() {
+  display() {
     drawTopBar("MOVE MOUSE to gather argal  :  " + this.collected + " / " + this.target + " needed")
     drawTimerBar(this.timer, this.timeLimit, 200, 160, 80)
 
@@ -569,8 +584,8 @@ class GatherMinigame {
         let d = dist(this.px, this.py, b.x, b.y)
         if (d < 22) {
           b.picked = true
-          this.collected = this.collected + 1
           sounds.play("pickup", 0.5)
+          this.collected = this.collected + 1
         }
       }
     }
@@ -585,17 +600,17 @@ class GatherMinigame {
     fill(80, 50, 30)
     triangle(this.px - 6, this.py - 15, this.px + 6, this.py - 15, this.px, this.py - 22)
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.collected >= this.target) {
-      game.finishMinigame(-0.12, 0.10,
+      game.finishMinigame(0.12, -0.15,
         "The basket is full. The argal will burn slow and warm.\nThe pines still whisper on the ridge.",
         true)
     } else if (this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.12, -0.15,
+      game.finishMinigame(-0.12, -0.20,
         "Dusk came too soon. The basket is light.\nThe tribe will be cold tonight.",
         false)
     }
@@ -611,22 +626,14 @@ class DigMinigame {
   constructor() {
     this.timer = 0;
     this.timeLimit = 3000;
-    this.target = 12;
-    this.hits = 0;
-    this.depth = 0;;
-    this.angle = 0;
-    this.flash = 0;
-  };
-
-  start() {
+    this.target = 7;
     this.hits = 0;
     this.depth = 0;
-    this.timer = 0;
     this.angle = 0;
     this.flash = 0;
   }
 
-  draw() {
+  display() {
     fill(0, 0, 0, 80)
     rect(0, 0, 800, 500)
 
@@ -665,17 +672,17 @@ class DigMinigame {
       this.flash = this.flash - 1
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.hits >= this.target) {
       game.finishMinigame(-0.20, 0.20,
         "Water rises from the deep.\nThe herds drink, but the groundwater is depleted slowly.",
         true)
     } else if (this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.15, 0.05,
+      game.finishMinigame(-0.15, -0.05,
         "The well is shallow and muddy.\nSome water for the tribe. Less grass next spring.",
         false)
     }
@@ -695,28 +702,19 @@ class DigMinigame {
 class MigrateMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 600
-    this.rx = 80   // rider
-    this.ry = 400
-    this.herd = []
-    this.progress = 0
-    this.scatter = 0
-  }
-
-  start() {
+    this.timeLimit = 1200
     this.rx = 80
     this.ry = 400
-    this.timer = 0
+    this.herd = []
     this.progress = 0
     this.scatter = 0
-    this.herd = []
     for (let i = 0; i < 5; i++) {
       this.herd.push({ x: 40 + i * 12, y: 400 + random(-10, 10) })
     }
     sounds.loopOne("gallop", 0.3)
   }
 
-  draw() {
+  display() {
     fill(0, 0, 0, 60);
     rect(0, 0, 800, 500);
 
@@ -772,9 +770,20 @@ class MigrateMinigame {
       fill(0, 0, 0, 80)
       ellipse(h.x, h.y + 10, 20, 4)
       fill(230, 220, 200)
-      ellipse(h.x, h.y, 22, 14)
+      ellipse(h.x + 5, h.y - 5, 6, 6)
+      ellipse(h.x - 5, h.y + 5, 6, 6)
+      ellipse(h.x, h.y, 6, 6)
+      ellipse(h.x - 5, h.y - 5, 6, 6)
+      ellipse(h.x + 5, h.y + 5, 6, 6)
+      ellipse(h.x - 5, h.y, 6, 6)
+
+      ellipse(h.x + 5, h.y, 6, 6)
+      ellipse(h.x, h.y + 5, 6, 6)
+      ellipse(h.x, h.y - 5, 6, 6)
+      ellipse(h.x - 9, h.y, 6, 6)
+      ellipse(h.x + 9, h.y, 6, 6)
       fill(100, 80, 60)
-      circle(h.x - 10, h.y - 4, 8)
+      ellipse(h.x - 10, h.y - 4, 10, 8)
     }
 
     // rider + horse
@@ -801,18 +810,19 @@ class MigrateMinigame {
     fill(180, 140, 80)
     rect(250, 125, 300 * tl, 6)
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
+    let lastSheep = this.herd[this.herd.length - 1]
 
-    if (this.progress >= 1 && this.scatter < 60) {
+    if (lastSheep.x >= 500 && this.scatter < 60) {
       sounds.stop("gallop")
-      game.finishMinigame(0.04, 0.10,
+      game.finishMinigame(0.04, -0.10,
         "The tribe crosses to the far river.\nThe old pasture rests, and the children swim at dusk.",
         true)
-    } else if (this.progress >= 1 && this.scatter >= 60) {
+    } else if (lastSheep.x >= 715 && this.scatter >= 60) {
       sounds.stop("gallop")
       game.finishMinigame(0.04, -0.05,
         "You reach the river, but some of the herd was lost on the way.\nThe tribe will eat thin this season.",
@@ -834,16 +844,10 @@ class MigrateMinigame {
 class TorchMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 720
+    this.timeLimit = 1820
     this.target = 6
     this.lit = 0
     this.bushes = []
-  }
-
-  start() {
-    this.bushes = []
-    this.timer = 0
-    this.lit = 0
     for (let i = 0; i < 12; i++) {
       this.bushes.push({
         x: random(80, 720),
@@ -853,10 +857,10 @@ class TorchMinigame {
         ignTime: 0
       })
     }
-    sounds.play("wolfhowl", 0.5)
+    sounds.play("wolfhowl", 0.3)
   }
 
-  draw() {
+  display() {
     fill(20, 15, 10, 180);
     rect(0, 0, 800, 500);
 
@@ -927,10 +931,10 @@ class TorchMinigame {
       circle(wx + 8, 200, 4)
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
 
     if (this.lit >= this.target && this.lit < 10) {
@@ -940,7 +944,7 @@ class TorchMinigame {
         true)
     } else if (this.lit >= 10) {
       sounds.stop("fire")
-      game.finishMinigame(-0.30, 0.10,
+      game.finishMinigame(-0.30, -0.10,
         "The fire spread beyond your hand.\nThe wolves are gone, but so is the steppe for miles.",
         false)
     } else if (this.timer >= this.timeLimit) {
@@ -973,27 +977,19 @@ class TorchMinigame {
 class HuntMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 600
+    this.timeLimit = 1200
     this.target = 3
     this.kills = 0
     this.arrows = 8
     this.injury = 0
     this.wolves = []
-  }
-
-  start() {
-    this.wolves = []
-    this.kills = 0
-    this.arrows = 8
-    this.timer = 0
-    this.injury = 0
     for (let i = 0; i < 4; i++) {
-      this.wolves.push({ x: random(100, 700), y: random(280, 440), alive: true, vx: random(-1.5, 1.5), vy: random(-0.5, 0.5) })
+      this.wolves.push({ x: random(100, 700), y: random(350, 440), alive: true, vx: random(-1.5, 1.5), vy: random(-0.5, 0.5) })
     }
-    sounds.play("wolfhowl", 0.5)
+    sounds.play("wolfhowl", 0.3)
   }
 
-  draw() {
+  display() {
     fill(0, 0, 0, 80)
     rect(0, 0, 800, 500)
 
@@ -1057,10 +1053,10 @@ class HuntMinigame {
       text("wolves reached the camp: " + this.injury, 400, 130)
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
 
     if (this.kills >= this.target) {
@@ -1073,7 +1069,7 @@ class HuntMinigame {
       }
       game.finishMinigame(-0.03, gain, msg, true)
     } else if (this.arrows <= 0 || this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.03, -0.15 - this.injury * 0.03,
+      game.finishMinigame(-0.03, -0.25,
         "The hunt failed. The wolves slipped into the dark,\nand the camp paid for it in blood.",
         false)
     }
@@ -1106,22 +1102,16 @@ class HuntMinigame {
 class ShearMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 880
+    this.timeLimit = 2080
     this.target = 8
     this.done = 0
     this.theGoats = []
-  }
-
-  start() {
-    this.theGoats = []
-    this.done = 0
-    this.timer = 0
     for (let i = 0; i < 8; i++) {
       this.theGoats.push({ x: 100 + (i % 4) * 160, y: 290 + floor(i / 4) * 100, wool: 1.0, sheared: false })
     }
   }
 
-  draw() {
+  display() {
     fill(0, 0, 0, 60)
     rect(0, 0, 800, 500)
 
@@ -1155,17 +1145,17 @@ class ShearMinigame {
       }
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.done >= this.target) {
-      game.finishMinigame(-0.16, 0.22,
+      game.finishMinigame(-0.16, 0.15,
         "The wool fills the carts. Silver fills the pouch.\nThe goats shiver in the wind.",
         true)
     } else if (this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.14, 0.05,
+      game.finishMinigame(-0.14, -0.05,
         "Some wool was sheared, some left on the goats.\nThe merchant offered less than promised.",
         false)
     }
@@ -1203,15 +1193,7 @@ class MilkMinigame {
     this.inWindow = false
   }
 
-  start() {
-    this.hits = 0
-    this.misses = 0
-    this.timer = 0
-    this.pulse = 0
-    this.flash = 0
-  }
-
-  draw() {
+  display() {
     fill(0, 0, 0, 60)
     rect(0, 0, 800, 500)
 
@@ -1274,10 +1256,10 @@ class MilkMinigame {
       text("now!", 400, 200);
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.hits >= this.target) {
       game.finishMinigame(0.02, 0.10,
@@ -1308,19 +1290,11 @@ class MilkMinigame {
 class CullMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 580
+    this.timeLimit = 2080
     this.target = 5
     this.done = 0
     this.mistakes = 0
     this.animals = []
-  }
-
-  start() {
-    this.animals = []
-    this.done = 0
-    this.mistakes = 0
-    this.timer = 0
-    // pick 6 weak ones randomly
     let weakList = []
     while (weakList.length < 6) {
       let r = floor(random(10))
@@ -1333,7 +1307,7 @@ class CullMinigame {
     }
   }
 
-  draw() {
+  display() {
     fill(0, 0, 0, 80)
     rect(0, 0, 800, 500)
 
@@ -1383,10 +1357,10 @@ class CullMinigame {
       }
     }
 
-    this.update()
+    this.move()
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
     if (this.done >= this.target) {
       let pen = 0.18 - this.mistakes * 0.04
@@ -1398,7 +1372,7 @@ class CullMinigame {
       }
       game.finishMinigame(-0.14, pen, msg, true)
     } else if (this.timer >= this.timeLimit) {
-      game.finishMinigame(-0.14, -0.10,
+      game.finishMinigame(-0.14, -0.15,
         "Indecision in the cold. Some animals froze where they stood.\nThe tribe eats little, and the herd is thin.",
         false)
     }
@@ -1431,25 +1405,16 @@ class CullMinigame {
 class ShelterMinigame {
   constructor() {
     this.timer = 0
-    this.timeLimit = 1420
+    this.timeLimit = 2020
     this.herdX = 400
     this.herdY = 330
     this.threats = []
-    this.spawnTimer = 0
-    this.health = 1.0
-  }
-
-  start() {
-    this.herdX = 400
-    this.herdY = 330
-    this.threats = []
-    this.timer = 0
     this.spawnTimer = 0
     this.health = 1.0
     sounds.loopOne("wind", 0.5)
   }
 
-  draw() {
+  display() {
     // cold tint
     fill(180, 200, 220, 40)
     rect(0, 0, 800, 500)
@@ -1493,7 +1458,7 @@ class ShelterMinigame {
 
     // spawn threats from edges
     this.spawnTimer = this.spawnTimer + 1
-    if (this.spawnTimer > 50) {
+    if (this.spawnTimer > 25) {
       this.spawnTimer = 0
       this.spawnThreat()
     }
@@ -1528,8 +1493,8 @@ class ShelterMinigame {
       }
 
       // draw
-      if (th.type == "wolf") {
-        fill(70, 65, 60)
+      if (th.type == "Cold") {
+        fill(160, 200, 230)
         ellipse(th.x, th.y, 24, 12)
         fill(220, 180, 60)
         circle(th.x + 8, th.y - 2, 2)
@@ -1542,16 +1507,21 @@ class ShelterMinigame {
       }
     }
 
-    this.update()
+    this.move()
   }
 
   spawnThreat() {
     let edge = floor(random(4))
     let tx, ty
-    if (edge == 0) { tx = -20; ty = random(150, 450) }
-    else if (edge == 1) { tx = 820; ty = random(150, 450) }
-    else if (edge == 2) { tx = random(800); ty = 130 }
-    else { tx = random(800); ty = 480 }
+    if (edge == 0) {
+      tx = -20; ty = random(150, 450)
+    } else if (edge == 1) {
+      tx = 820; ty = random(150, 450)
+    } else if (edge == 2) {
+      tx = random(800); ty = 130
+    } else {
+      tx = random(800); ty = 480
+    }
 
     // aim at herd
     let dx = this.herdX - tx
@@ -1562,13 +1532,13 @@ class ShelterMinigame {
     this.threats.push({ x: tx, y: ty, vx: (dx / d) * sp, vy: (dy / d) * sp, type: type })
   }
 
-  update() {
+  move() {
     this.timer = this.timer + 1
 
     if (this.timer >= this.timeLimit) {
       sounds.stop("wind")
       if (this.health >= 0.6) {
-        game.finishMinigame(0.04, 0.12,
+        game.finishMinigame(0.04, -0.02,
           "Dawn breaks. The herd is shivering but whole.\nNo animal lost. The tribe walks lighter into spring.",
           true)
       } else if (this.health >= 0.3) {
@@ -1626,7 +1596,7 @@ class Environment {
     this.targetTribe = constrain(this.targetTribe + tribeDelta, 0, 1)
   }
 
-  update() {
+  move() {
     // smooth toward target
     this.health = lerp(this.health, this.targetHealth, 0.05)
     this.tribe = lerp(this.tribe, this.targetTribe, 0.05)
@@ -1687,14 +1657,31 @@ class Environment {
         fill(220, 190, 150)
         circle(x, 337, 5)
       }
+      if (t < this.figT[i]) {
+        let x = this.figX[i]
+        fill(255, 0, 0, 100)
+        ellipse(x + 5, 350, 10, 3)
+        fill(100, 60, 45)
+        triangle(x + 10, 345, x, 350, x, 340)
+        fill(220, 190, 150)
+        circle(x + 12, 345, 5)
+      }
     }
 
     // smoke
-    if (t > 0.1) {
+    if (t > 0.5) {
       fill(240, 235, 225, 120 * t)
       for (let i = 0; i < 3; i++) {
         let sy = 260 - i * 18
         let sx = 705 + sin(frameCount * 0.02 + i) * 6
+        circle(sx, sy, 10 + i * 3)
+      }
+    }
+    if (t > 0.5) {
+      fill(240, 235, 225, 120 * t)
+      for (let i = 0; i < 3; i++) {
+        let sy = 260 - i * 18
+        let sx = 760 + cos(frameCount * 0.02 + i) * 6
         circle(sx, sy, 10 + i * 3)
       }
     }
@@ -1712,6 +1699,22 @@ class Environment {
     rect(-30, -40, 60, 40)
     // roof
     fill(215, 200, 180, a)
+    triangle(-32, -40, 32, -40, 0, -65)
+    // door
+    fill(140, 50, 40, a)
+    rect(-6, -20, 12, 20)
+    // smoke hole
+    fill(60, 40, 25, a)
+    ellipse(0, -62, 8, 3)
+    pop()
+    push()
+    translate(755, 340)
+    scale(s)
+    // body
+    fill(245, 235, 220, a)
+    rect(-30, -40, 60, 40)
+    // roof
+    fill(225, 210, 190, a)
     triangle(-32, -40, 32, -40, 0, -65)
     // door
     fill(140, 50, 40, a)
