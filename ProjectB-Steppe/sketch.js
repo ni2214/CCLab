@@ -16,7 +16,7 @@ function preload() {
 function setup() {
   let c = createCanvas(800, 500)
   c.parent("p5-canvas-container")
-  textFont("Georgia")
+  textFont("Consolas")
   env = new Environment()
   ui = new UI()
   game = new Game()
@@ -146,6 +146,7 @@ class Game {
     this.currentDec = 0
     this.outcomeText = ""
     this.minigame = null
+    this.lastSuccess = false
 
     // all the decision text
     this.prompts = [
@@ -230,6 +231,7 @@ class Game {
   finishMinigame(landDelta, tribeDelta, msg, success) {
     env.apply(landDelta, tribeDelta)
     this.outcomeText = msg
+    this.lastSuccess = success
     if (success) {
       sounds.play("success")
     } else {
@@ -472,7 +474,7 @@ class UI {
 
     textSize(11)
     fill(255, 200)
-    text("final land: " + h.toFixed(2) + "    final tribe: " + t.toFixed(2), 400, 320)
+    text("final land: " + floor(h * 100) + "%    final tribe: " + floor(t * 100) + "%", 400, 320)
 
     this.drawButton(300, 400, 200, 50, "Begin again", 60, 60, 80)
   }
@@ -484,7 +486,7 @@ class UI {
 class ChopMinigame {
   constructor() {
     this.timer = 0;
-    this.timeLimit = 300;
+    this.timeLimit = 650;
     this.hits = 0;
     this.target = 8;
     this.flash = 0;
@@ -662,7 +664,11 @@ class DigMinigame {
     strokeWeight(6)
     line(0, -30, 0, 30)
     noStroke()
-    fill(atBottom ? color(220, 200, 150) : color(160, 150, 140))
+    if (atBottom) {
+      fill(220, 200, 150)
+    } else {
+      fill(160, 150, 140)
+    }
     rect(-10, 25, 20, 20)
     pop()
 
@@ -1026,9 +1032,21 @@ class HuntMinigame {
         fill(70, 65, 60)
         ellipse(w.x, w.y, 32, 14)
         fill(90, 85, 80)
-        circle(w.x + (w.vx > 0 ? 14 : -14), w.y - 4, 10)
+        let headX
+        if (w.vx > 0) {
+          headX = w.x + 14
+        } else {
+          headX = w.x - 14
+        }
+        circle(headX, w.y - 4, 10)
         fill(220, 180, 60)
-        circle(w.x + (w.vx > 0 ? 16 : -16), w.y - 5, 2)
+        let eyeX
+        if (w.vx > 0) {
+          eyeX = w.x + 16
+        } else {
+          eyeX = w.x - 16
+        }
+        circle(eyeX, w.y - 5, 2)
 
         if (w.x > 700) {
           this.injury = this.injury + 1
@@ -1344,7 +1362,12 @@ class CullMinigame {
       ellipse(a.x, a.y, bw, bh)
 
       fill(180, 150, 120)
-      let hy = a.weak ? a.y - 2 : a.y - 8
+      let hy
+      if (a.weak) {
+        hy = a.y - 2
+      } else {
+        hy = a.y - 8
+      }
       ellipse(a.x - 18, hy, 18, 14)
 
       if (a.weak) {
@@ -1528,7 +1551,12 @@ class ShelterMinigame {
     let dy = this.herdY - ty
     let d = sqrt(dx * dx + dy * dy)
     let sp = random(0.8, 1.6)
-    let type = random() < 0.5 ? "wolf" : "cold"
+    let type
+    if (random() < 0.5) {
+      type = "wolf"
+    } else {
+      type = "cold"
+    }
     this.threats.push({ x: tx, y: ty, vx: (dx / d) * sp, vy: (dy / d) * sp, type: type })
   }
 
@@ -1647,15 +1675,22 @@ class Environment {
     this.drawGer(t)
 
     // people
+    let dancing = (game.state == "outcome" && game.lastSuccess && t > 0.72)
     for (let i = 0; i < this.figX.length; i++) {
       if (t > this.figT[i]) {
         let x = this.figX[i]
+        let dy
+        if (dancing) {
+          dy = sin(frameCount * 0.18 + i * 0.8) * 5
+        } else {
+          dy = 0
+        }
         fill(0, 0, 0, 80)
         ellipse(x, 353, 10, 3)
         fill(100, 60, 45)
-        triangle(x - 4, 350, x + 4, 350, x, 340)
+        triangle(x - 4, 350 + dy, x + 4, 350 + dy, x, 340 + dy)
         fill(220, 190, 150)
-        circle(x, 337, 5)
+        circle(x, 337 + dy, 5)
       }
       if (t < this.figT[i]) {
         let x = this.figX[i]
